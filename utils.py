@@ -1,5 +1,5 @@
 import os, json, re
-import requests
+import requests # type: ignore
 
 API_KEY  = os.getenv("OPENAI_API_KEY", "cse476")
 API_BASE = os.getenv("API_BASE", "http://10.4.58.53:41701/v1")
@@ -30,23 +30,23 @@ def call_model_chat_completions(prompt: str,
     }
 
     try:
-        resp = requests.post(url, headers=headers, json=payload, timeout=timeout)
-        status = resp.status_code
-        hdrs   = dict(resp.headers)
+        response = requests.post(url, headers=headers, json=payload, timeout=timeout)
+        status = response.status_code
+        response_headers = dict(response.headers)
         if status == 200:
-            data = resp.json()
+            data = response.json()
             text = data.get("choices", [{}])[0].get("message", {}).get("content", "")
-            return {"ok": True, "text": text, "raw": data, "status": status, "error": None, "headers": hdrs}
+            return {"ok": True, "text": text, "raw": data, "status": status, "error": None, "headers": response_headers}
         else:
             # try best-effort to surface error text
-            err_text = None
+            error_text = None
             try:
-                err_text = resp.json()
+                error_text = response.json()
             except Exception:
-                err_text = resp.text
-            return {"ok": False, "text": None, "raw": None, "status": status, "error": str(err_text), "headers": hdrs}
-    except requests.RequestException as e:
-        return {"ok": False, "text": None, "raw": None, "status": -1, "error": str(e), "headers": {}}
+                error_text = response.text
+            return {"ok": False, "text": None, "raw": None, "status": status, "error": str(error_text), "headers": response_headers}
+    except requests.RequestException as exception:
+        return {"ok": False, "text": None, "raw": None, "status": -1, "error": str(exception), "headers": {}}
 
 def self_evaluate(question, prediction, expected_answer, model=MODEL):
     """
@@ -72,14 +72,14 @@ EXPECTED_ANSWER:
 Answer with exactly: True or False
 """
 
-    r = call_model_chat_completions(
+    response = call_model_chat_completions(
         prompt,
         system=system,
         model=model,
         temperature=0.0,
     )
 
-    reply = (r.get("text") or "").strip().lower()
+    reply = (response.get("text") or "").strip().lower()
     if reply.startswith("true"):
         return True
     if reply.startswith("false"):
