@@ -56,9 +56,10 @@ def build_answers(questions: List[Dict[str, Any]]) -> Tuple[List[Dict[str, str]]
             category_stats[domain]["wrong"] += 1
             category_stats[domain]["wrong_answers"].append({
                 "index": idx,
-                "input": question_input[:100] + "..." if len(question_input) > 100 else question_input,
+                "domain": domain,
+                "input": question_input,
                 "expected": expected_output,
-                "got": answer_text[:100] + "..." if len(answer_text) > 100 else answer_text
+                "got": answer_text
             })
     
     return answers, dict(category_stats)
@@ -148,6 +149,7 @@ def generate_answers():
                 fp.write(f"\n{domain.upper()} ({len(wrong_answers)} wrong):\n")
                 for wrong in wrong_answers:
                     fp.write(f"\n  Question #{wrong['index']}:\n")
+                    fp.write(f"    Domain: {wrong['domain']}\n")
                     fp.write(f"    Input: {wrong['input']}\n")
                     fp.write(f"    Expected: {wrong['expected']}\n")
                     fp.write(f"    Got: {wrong['got']}\n")
