@@ -41,6 +41,38 @@ To mitigate this:
 - Falls back to the last meaningful line if "Final Answer:" marker is not found
 - Consider adjusting `max_tokens` in the API call if this becomes a frequent issue
 
+## Commit 3: Enhanced Math Chain-of-Thought Features
+
+### New Features Added
+
+1. **4-Phase Math Reasoning Process**
+   - **SETUP Phase**: Lists all variables and constraints from the problem
+   - **PLAN Phase**: Identifies formulas, theorems, and solution strategies
+   - **EXECUTION Phase**: Shows numbered steps with concise mathematical operations
+   - **VERIFICATION Phase**: Plugs the answer back into original constraints to verify correctness
+
+2. **Increased Token Limit**
+   - `max_tokens` increased from 128 to 800
+   - Allows for longer reasoning chains without truncation
+   - Better accommodates the 4-phase process and verification steps
+
+3. **Full Response Tracking**
+   - Returns both extracted final answer and complete model response
+   - Wrong answers report now displays both:
+     - **Final Answer**: The extracted answer for quick comparison
+     - **Full Response**: Complete reasoning process for debugging
+
+4. **Math-Only Filtering**
+   - Added option to filter and process only math questions
+   - Useful for focused testing and evaluation of math-specific techniques
+
+### Benefits
+
+- **Better Math Accuracy**: Structured 4-phase process improves problem-solving approach
+- **Reduced Truncation**: 800 token limit prevents final answers from being cut off
+- **Enhanced Debugging**: Full response visibility helps identify where reasoning goes wrong
+- **Focused Evaluation**: Math-only filtering enables targeted performance analysis
+
 ## Output Files
 
 - `cse_476_final_project_answers.json`: Generated answers in the required format
@@ -51,7 +83,7 @@ To mitigate this:
 
 Key parameters can be adjusted in:
 - `inference_techniques.py`: `max_calls_per_question` (default: 20)
-- `utils.py`: `max_tokens` in API calls (default: 128)
+- `utils.py`: `max_tokens` in API calls (default: 800)
 - `main.py`: Input/output file paths
 
 ## Evaluation

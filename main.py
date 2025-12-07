@@ -44,7 +44,16 @@ def build_answers(questions: List[Dict[str, Any]]) -> Tuple[List[Dict[str, str]]
         expected_output = question.get("output", "")
         domain = question.get("domain", "unknown")
         
-        answer_text = agent.solve_and_answer(question_input)
+        result = agent.solve_and_answer(question_input)
+        
+        # Handle dict return (from math_chain_of_thought) or string return
+        if isinstance(result, dict):
+            answer_text = result.get("answer", "")
+            full_response = result.get("full_response", "")
+        else:
+            answer_text = result
+            full_response = result
+        
         answers.append({"output": answer_text})
         
         # Check if answer is correct using self_evaluate (LLM-as-a-judge)
@@ -59,7 +68,8 @@ def build_answers(questions: List[Dict[str, Any]]) -> Tuple[List[Dict[str, str]]
                 "domain": domain,
                 "input": question_input,
                 "expected": expected_output,
-                "got": answer_text
+                "got": answer_text,
+                "full_response": full_response
             })
     
     return answers, dict(category_stats)
@@ -90,8 +100,12 @@ def generate_answers():
     output_path = Path("cse_476_final_project_answers.json")
     
     print("\n=== Generating Answers ===")
-    questions = load_questions(input_path)
-    print(f"Loaded {len(questions)} questions from {input_path}")
+    all_questions = load_questions(input_path)
+    print(f"Loaded {len(all_questions)} total questions from {input_path}")
+    
+    # Filter to only math questions
+    questions = [q for q in all_questions if q.get("domain") == "math"]
+    print(f"Filtered to {len(questions)} math questions")
     
     answers, category_stats = build_answers(questions)
     
@@ -152,7 +166,9 @@ def generate_answers():
                     fp.write(f"    Domain: {wrong['domain']}\n")
                     fp.write(f"    Input: {wrong['input']}\n")
                     fp.write(f"    Expected: {wrong['expected']}\n")
-                    fp.write(f"    Got: {wrong['got']}\n")
+                    fp.write(f"    Final Answer: {wrong['got']}\n")
+                    if 'full_response' in wrong and wrong['full_response']:
+                        fp.write(f"    Full Response:\n{wrong['full_response']}\n")
     
     if total_wrong > 0:
         print(f"\nWrong answers written to {wrong_answers_path}")

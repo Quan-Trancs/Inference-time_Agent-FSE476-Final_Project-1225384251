@@ -6,6 +6,7 @@ class WorkingAgent:
         self.technique = InferenceTechnique(self)
 
     def solve_and_answer(self, question):
-        # Use Chain-of-Thought technique for step-by-step reasoning
-        answer = self.technique.chain_of_thought(question)
-        return answer
+        # Use Math Chain-of-Thought technique for math problems
+        result = self.technique.math_chain_of_thought(question)
+        # Return dict with both answer and full_response
+        return result
