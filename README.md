@@ -1,77 +1,181 @@
-# Final Project - LLM Agent with Inference Techniques
+# Final Project - LLM Agent with Domain-Specific Inference Techniques
 
-This project implements an LLM-based agent system for answering questions across multiple domains including math, coding, common sense, future prediction, and planning.
+This project implements an intelligent LLM-based agent system that automatically classifies question domains and applies specialized inference techniques to generate accurate answers across multiple domains: mathematics, coding, planning, future prediction, and common sense reasoning.
 
-## Features added
+## Features
 
-- **Chain-of-Thought (CoT) Prompting**: Step-by-step reasoning for complex problems
-- **Domain-specific evaluation**: Tracks performance by category
+- **Automatic Domain Classification**: LLM-based classifier routes questions to appropriate techniques
+- **Domain-Specific Techniques**:
+  - **Math**: 4-phase structured reasoning (SETUP, PLAN, EXECUTION, VERIFICATION)
+  - **Future Prediction**: Self-consistency with 7-sample majority voting
+  - **Other Domains**: Chain-of-Thought step-by-step reasoning
 - **LLM-as-a-judge evaluation**: Uses self_evaluate for answer validation
-- **Comprehensive reporting**: Generates statistics and wrong answer reports
+- **Comprehensive reporting**: Generates statistics and wrong answer reports with full responses
+- **Format compliance**: Ensures submission-ready output format
 
+## Installation
+
+### Prerequisites
+
+- Python 3.x
+- Required packages: `requests`, `tqdm` (optional, for progress bar)
+
+### Setup
+
+1. Clone the repository:
+```bash
+git clone https://github.com/Quan-Trancs/Inference-time_Agent-FSE476-Final_Project-1225384251
+cd Inference-time_Agent-FSE476-Final_Project-1225384251
+```
+
+2. Install dependencies:
+```bash
+pip install requests tqdm
+```
+
+3. Configure environment variables (optional, defaults provided):
+```bash
+export OPENAI_API_KEY="cse476"
+export API_BASE="http://10.4.58.53:41701/v1"
+export MODEL_NAME="bens_model"
+```
 
 ## Usage
 
-Run the main script to generate answers for the dev dataset:
+### For Test Data (Final Submission)
+
+Run the main script to generate answers for the test dataset:
 
 ```bash
 python main.py
 ```
 
 This will:
-1. Load questions from `cse476_final_project_dev_data.json`
-2. Generate answers using the agent
-3. Evaluate answers using LLM-as-a-judge
-4. Save results to `cse_476_final_project_answers.json`
-5. Generate statistics and wrong answer reports
+1. Load questions from `cse_476_final_project_test_data.json`
+2. Classify each question's domain
+3. Apply appropriate inference technique based on domain
+4. Generate answers in the required format
+5. Save results to `cse_476_final_project_answers.json`
+6. Validate format compliance
 
-## Chain-of-Thought (CoT) Implementation
+### For Dev Data (With Evaluation)
 
-The project uses **Chain-of-Thought Prompting** as the primary inference technique. This approach:
+To test with dev data (includes expected answers for evaluation), modify `main.py` line 99:
+- Change `cse_476_final_project_test_data.json` to `cse476_final_project_dev_data.json`
 
-- **Improves math results**: Step-by-step reasoning significantly improves accuracy on mathematical problems
-- **Works across domains**: Effective for coding, planning, predictions, and common sense questions
+This will additionally:
+- Evaluate answers using LLM-as-a-judge
+- Generate statistics by domain
+- Create wrong answers report with full responses
 
-### Known Limitation
+## Architecture Overview
 
-**Token Limit Issue**: In some cases, the Chain-of-Thought approach generates responses that exceed the allowed token limit. When this happens, the final answer may be truncated or not included in the response, which can lead to incomplete or missing answers.
+### Agent Flow
 
-To mitigate this:
-- The system attempts to extract the final answer from available text
-- Falls back to the last meaningful line if "Final Answer:" marker is not found
-- Consider adjusting `max_tokens` in the API call if this becomes a frequent issue
+1. **Domain Classification** (`utils.py::classify_domain`)
+   - Classifies question into: math, coding, planning, future_prediction, or common_sense
+   - Uses LLM with temperature 0.0 for consistent classification
+   - Always returns a valid domain (fallback to common_sense if unclear)
 
-## Commit 3: Enhanced Math Chain-of-Thought Features
+2. **Technique Routing** (`agent.py::solve_and_answer`)
+   - Math → `math_chain_of_thought()` (4-phase structured process)
+   - Future Prediction → `self_consistency()` (7 samples, majority voting)
+   - Other → `chain_of_thought()` (step-by-step reasoning)
 
-### New Features Added
+3. **Answer Generation** (`inference_techniques.py`)
+   - Each technique generates reasoning and extracts final answer
+   - Returns both answer and full response for debugging
 
-1. **4-Phase Math Reasoning Process**
-   - **SETUP Phase**: Lists all variables and constraints from the problem
-   - **PLAN Phase**: Identifies formulas, theorems, and solution strategies
-   - **EXECUTION Phase**: Shows numbered steps with concise mathematical operations
-   - **VERIFICATION Phase**: Plugs the answer back into original constraints to verify correctness
+4. **Answer Cleaning** (`main.py::build_answers`)
+   - Removes reasoning markers ("Final Answer:", etc.)
+   - Takes only first line (ensures single-line answers)
+   - Validates format compliance
 
-2. **Increased Token Limit**
-   - `max_tokens` increased from 128 to 800
-   - Allows for longer reasoning chains without truncation
-   - Better accommodates the 4-phase process and verification steps
+## Implementation Details
 
-3. **Full Response Tracking**
-   - Returns both extracted final answer and complete model response
-   - Wrong answers report now displays both:
-     - **Final Answer**: The extracted answer for quick comparison
-     - **Full Response**: Complete reasoning process for debugging
+### Math Chain-of-Thought (4-Phase Process)
 
-4. **Math-Only Filtering**
-   - Added option to filter and process only math questions
-   - Useful for focused testing and evaluation of math-specific techniques
+**File**: `inference_techniques.py`, function `math_chain_of_thought()`, lines 78-146
 
-### Benefits
+**Process**:
+1. **SETUP**: Lists variables, constraints, and what's requested
+2. **PLAN**: Identifies formulas/theorems and solution strategy
+3. **EXECUTION**: Shows numbered steps with concise math
+4. **VERIFICATION**: Plugs answer back into constraints
 
-- **Better Math Accuracy**: Structured 4-phase process improves problem-solving approach
-- **Reduced Truncation**: 800 token limit prevents final answers from being cut off
-- **Enhanced Debugging**: Full response visibility helps identify where reasoning goes wrong
-- **Focused Evaluation**: Math-only filtering enables targeted performance analysis
+**Key Features**:
+- Temperature 0.1 for consistency
+- Returns dict with `answer` and `full_response`
+- Extracts final answer from "final answer:" marker
+
+### Self-Consistency (Future Predictions)
+
+**File**: `inference_techniques.py`, function `self_consistency()`, lines 148-200
+
+**Process**:
+- Generates 7 independent answers with temperature 0.7
+- Uses `answer{ANSWER}` format for extraction
+- Applies majority voting via Counter
+
+**Key Features**:
+- 7 samples for robust aggregation
+- Temperature 0.7 for diversity
+- Consistent format extraction
+
+### Chain-of-Thought (General)
+
+**File**: `inference_techniques.py`, function `chain_of_thought()`, lines 29-76
+
+**Process**:
+- Prompts step-by-step reasoning
+- Extracts final answer from markers
+- Returns both answer and full response
+
+### Domain Classification
+
+**File**: `utils.py`, function `classify_domain()`, lines 51-87
+
+**Process**:
+- Single LLM call to classify domain
+- Normalizes response to valid domain
+- Fallback to common_sense if classification unclear
+
+### Answer Format Compliance
+
+**File**: `main.py`, function `build_answers()`, lines 58-73
+
+**Ensures**:
+- Only final answer in output (no reasoning)
+- Single-line answers
+- Removes all prefixes and markers
+- Validates string type and length (< 5000 chars)
+
+## Key Design Decisions
+
+### 1. Domain-Specific Techniques
+
+Different question types require different reasoning approaches:
+- **Math**: Structured 4-phase process with verification reduces calculation errors
+- **Future Prediction**: Self-consistency with majority voting handles uncertainty
+- **General**: Chain-of-thought provides step-by-step reasoning
+
+### 2. Token Limit: 128 → 800
+
+**Rationale**: Chain-of-thought reasoning requires more tokens. Increased to:
+- Accommodate full reasoning chains
+- Include verification steps for math
+- Prevent final answer truncation
+
+**Location**: `utils.py`, line 29
+
+### 3. Answer Cleaning
+
+**Rationale**: Auto-grader requires only final answers. Cleaning ensures:
+- No intermediate steps in output
+- No "Final Answer:" prefixes
+- Single-line answers only
+
+**Location**: `main.py`, lines 58-73
 
 ## Output Files
 
@@ -79,31 +183,85 @@ To mitigate this:
 - `statistics_report.txt`: Performance statistics by category
 - `wrong_answers_report.txt`: Detailed list of incorrect answers with full context
 
+## File Structure
+
+```
+final_project/
+├── agent.py                  # WorkingAgent class with domain routing
+├── inference_techniques.py   # Three inference techniques implementation
+├── utils.py                  # API utilities, domain classification, evaluation
+├── main.py                   # Main execution script with answer processing
+├── cse_476_final_project_test_data.json    # Test dataset (input only)
+├── cse476_final_project_dev_data.json     # Dev dataset (with expected answers)
+├── README.md                 # This file
+└── FINAL_PROJECT_REPORT.md   # Detailed project report
+```
+
 ## Configuration
 
 Key parameters can be adjusted in:
 - `inference_techniques.py`: `max_calls_per_question` (default: 20)
 - `utils.py`: `max_tokens` in API calls (default: 800)
-- `main.py`: Input/output file paths
+- `main.py`: Input/output file paths (line 99-100)
+
+## Output Format
+
+The generated JSON file follows the exact format required by the auto-grader:
+- Each entry: `{"output": "final_answer_string"}`
+- Output contains only the final answer (no reasoning)
+- Validated: string type, < 5000 characters, "output" field present
 
 ## Evaluation
 
-The system uses `self_evaluate` from `utils.py` which:
+The system uses `self_evaluate` from `utils.py` (lines 91-128) which:
 - Uses the LLM itself as a judge to determine correctness
 - Falls back to normalized string comparison if needed
 - Handles different answer formats (numeric, text, etc.)
 
-## Performance
+**Note**: Evaluation only runs on dev data (which has expected answers). Test data does not include expected answers.
 
-Current performance by domain (from statistics report):
-- **MATH**: Best performance with CoT reasoning
-- **COMMON_SENSE**: Moderate performance
-- **CODING**: Code generation tasks
-- **FUTURE_PREDICTION**: Prediction tasks
-- **PLANNING**: Planning and reasoning tasks
+## Performance Characteristics
 
-## Notes
+### API Call Usage
 
-- The system processes questions sequentially with a progress bar
-- Wrong answers are tracked with full domain, input, expected, and actual output
-- All files use **UTF-8** encoding to handle special characters
+- **Domain Classification**: 1 call per question (~50-100 tokens)
+- **Math Questions**: 1 call (~800 tokens max)
+- **Future Predictions**: 7 calls per question (~100 tokens each)
+- **Other Domains**: 1 call (~800 tokens max)
+
+**Total**: 1-8 API calls per question depending on domain
+
+### Known Limitations
+
+1. **Token Limit**: While increased to 800, very complex problems may still truncate
+   - Mitigation: Answer extraction handles truncated responses, full response stored for debugging
+
+2. **Domain Classification**: May occasionally misclassify edge cases
+   - Mitigation: Fallback to common_sense ensures valid technique is always used
+
+3. **Answer Extraction**: If model doesn't follow format exactly, extraction may fail
+   - Mitigation: Multiple fallback strategies (marker detection, last line extraction)
+
+## Troubleshooting
+
+### Issue: "ERROR: max call limit reached"
+- **Cause**: Call counter not resetting between questions
+- **Solution**: Already fixed - counter resets at start of each technique
+
+### Issue: Answers contain reasoning instead of just final answer
+- **Cause**: Answer cleaning not working properly
+- **Solution**: Check `main.py` lines 58-73 for cleaning logic
+
+### Issue: Domain misclassification
+- **Cause**: LLM classification uncertainty
+- **Solution**: System automatically falls back to common_sense domain
+
+## GitHub Repository
+
+**Repository Link**: https://github.com/Quan-Trancs/Inference-time_Agent-FSE476-Final_Project-1225384251
+
+The repository includes:
+- Complete source code with detailed comments
+- This README with setup instructions
+- FINAL_PROJECT_REPORT.md with detailed implementation description
+- All necessary configuration files

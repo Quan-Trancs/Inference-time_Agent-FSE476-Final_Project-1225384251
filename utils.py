@@ -48,6 +48,43 @@ def call_model_chat_completions(prompt: str,
     except requests.RequestException as exception:
         return {"ok": False, "text": None, "raw": None, "status": -1, "error": str(exception), "headers": {}}
 
+def classify_domain(question: str, model=MODEL) -> str:
+    """
+    Classify the domain of a question using the LLM.
+    Returns: 'math', 'coding', 'planning', 'future_prediction', or 'common_sense'
+    Always returns one of the valid domains, never 'unknown'.
+    """
+    system = "You are a domain classifier. You MUST reply with exactly one word from: math, coding, planning, future_prediction, common_sense. Choose the best match."
+    prompt = f"""Classify the domain of this question. You MUST choose exactly one from: math, coding, planning, future_prediction, common_sense.
+
+QUESTION: {question}
+
+Reply with only one word:"""
+    
+    response = call_model_chat_completions(
+        prompt,
+        system=system,
+        model=model,
+        temperature=0.0,
+    )
+    
+    domain = (response.get("text") or "").strip().lower()
+    
+    # Normalize the response - always return a valid domain
+    if "math" in domain:
+        return "math"
+    elif "coding" in domain or "code" in domain:
+        return "coding"
+    elif "planning" in domain:
+        return "planning"
+    elif "future" in domain or "prediction" in domain:
+        return "future_prediction"
+    elif "common" in domain or "sense" in domain:
+        return "common_sense"
+    else:
+        # Fallback: default to common_sense if classification fails
+        return "common_sense"
+
 def self_evaluate(question, prediction, expected_answer, model=MODEL):
     """
     Use the model itself as a strict grader.

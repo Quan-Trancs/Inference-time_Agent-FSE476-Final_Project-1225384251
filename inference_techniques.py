@@ -27,7 +27,7 @@ class InferenceTechnique:
         self.call_counter = 0
 
     # Technique 1: Chain-of-Thought Prompting
-    def chain_of_thought(self, question: str) -> str:
+    def chain_of_thought(self, question: str) -> dict:
         """
         Chain-of-Thought Prompting: Prompts the model to think step-by-step before answering.
         Best for: All domains requiring reasoning - math, coding, planning, predictions, common sense.
@@ -57,23 +57,27 @@ Final Answer: <answer>"""
         )
         
         # Extract final answer if present
+        final_answer = None
         if "Final Answer:" in response:
-            answer = response.split("Final Answer:")[-1].strip()
+            final_answer = response.split("Final Answer:")[-1].strip()
             # Remove any leading colons or dashes
-            answer = re.sub(r'^[:\-\s]+', '', answer)
-            return answer
-        if "final answer:" in response.lower():
-            answer = response.split("final answer:")[-1].strip()
-            answer = re.sub(r'^[:\-\s]+', '', answer)
-            return answer
+            final_answer = re.sub(r'^[:\-\s]+', '', final_answer)
+        elif "final answer:" in response.lower():
+            final_answer = response.split("final answer:")[-1].strip()
+            final_answer = re.sub(r'^[:\-\s]+', '', final_answer)
+        else:
+            # If no explicit final answer marker, try to find the last meaningful line
+            lines = [line.strip() for line in response.strip().split('\n') if line.strip()]
+            if lines:
+                final_answer = lines[-1]
+            else:
+                final_answer = response.strip()
         
-        # If no explicit final answer marker, try to find the last meaningful line
-        lines = [line.strip() for line in response.strip().split('\n') if line.strip()]
-        if lines:
-            # Return the last non-empty line
-            return lines[-1]
-        
-        return response.strip()
+        # Return both final answer and full response
+        return {
+            "answer": final_answer,
+            "full_response": response.strip()
+        }
 
     # Technique 1 + 2 (variant): Math Chain-of-Thought with Meta Prompting
     def math_chain_of_thought(self, question: str) -> str:
@@ -143,4 +147,57 @@ SOLVE NOW:"""
         return {
             "answer": final_answer,
             "full_response": response.strip()
-        } 
+        }
+
+    # Technique 2: Self-Consistency (General for all domains except math)
+    def self_consistency(self, question: str, samples: int = 7) -> str:
+        """
+        Self-Consistency: Generates multiple answers and selects the most consistent one.
+        """
+        # Reset counter for each new question
+        self.reset_counter()
+        
+        predictions = []
+        
+        for _ in range(samples):
+            response = self._call(
+                f"""
+                    {question}
+
+                    IMPORTANT:
+
+                    Your final answer MUST end with this exact format:
+
+                    answer{{YOUR_ANSWER}}
+
+                    Do not add anything else.
+
+                    """,
+                temperature=0.7
+            )
+            
+            answer = response.strip()
+            
+            # Extract answer from answer{ANSWER} format
+            if "answer{" in answer.lower():
+                # Find the start of answer{ and extract content
+                start_idx = answer.lower().find("answer{")
+                if start_idx != -1:
+                    # Remove everything before answer{
+                    answer = answer[start_idx:]
+                    # Extract content between braces
+                    if "{" in answer and "}" in answer:
+                        start_brace = answer.find("{") + 1
+                        end_brace = answer.find("}")
+                        answer = answer[start_brace:end_brace].strip()
+                    else:
+                        # No closing brace, take everything after answer{
+                        answer = answer[answer.lower().find("answer{") + 7:].strip()
+            
+            predictions.append(answer)
+        
+        # Count frequencies
+        count = Counter(predictions)
+        most_common = count.most_common(1)[0][0]
+        
+        return most_common 

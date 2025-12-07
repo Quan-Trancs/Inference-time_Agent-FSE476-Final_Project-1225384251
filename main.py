@@ -1,4 +1,5 @@
 import json
+import re
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 from collections import defaultdict
@@ -41,8 +42,8 @@ def build_answers(questions: List[Dict[str, Any]]) -> Tuple[List[Dict[str, str]]
     for idx, question in enumerate(tqdm(questions, desc="Processing questions", unit="question"), start=1):
         # Use agent to solve and get an answer
         question_input = question.get("input", "")
-        expected_output = question.get("output", "")
-        domain = question.get("domain", "unknown")
+        expected_output = question.get("output", None)  # May not exist in test data
+        domain = question.get("domain", None)  # May not exist in test data
         
         result = agent.solve_and_answer(question_input)
         
@@ -54,23 +55,50 @@ def build_answers(questions: List[Dict[str, Any]]) -> Tuple[List[Dict[str, str]]
             answer_text = result
             full_response = result
         
+        # Clean answer: ensure it contains only the final answer, no reasoning
+        # Remove any potential reasoning markers or extra text
+        answer_text = str(answer_text).strip()
+        
+        # Remove common prefixes that might indicate reasoning
+        prefixes_to_remove = ["Final Answer:", "final answer:", "Answer:", "answer:"]
+        for prefix in prefixes_to_remove:
+            if answer_text.lower().startswith(prefix.lower()):
+                answer_text = answer_text[len(prefix):].strip()
+                # Remove leading colons, dashes, or whitespace
+                answer_text = re.sub(r'^[:\-\s]+', '', answer_text)
+        
+        # Take only the first line if multiple lines (final answer should be single line)
+        if '\n' in answer_text:
+            answer_text = answer_text.split('\n')[0].strip()
+        
+        # Ensure answer is a string and not empty
+        if not answer_text:
+            answer_text = ""
+        
         answers.append({"output": answer_text})
         
-        # Check if answer is correct using self_evaluate (LLM-as-a-judge)
-        is_correct = check_answer(question_input, answer_text, expected_output)
-        
-        if is_correct:
-            category_stats[domain]["correct"] += 1
-        else:
-            category_stats[domain]["wrong"] += 1
-            category_stats[domain]["wrong_answers"].append({
-                "index": idx,
-                "domain": domain,
-                "input": question_input,
-                "expected": expected_output,
-                "got": answer_text,
-                "full_response": full_response
-            })
+        # Only evaluate if expected_output exists (dev data has it, test data doesn't)
+        if expected_output is not None:
+            # Check if answer is correct using self_evaluate (LLM-as-a-judge)
+            is_correct = check_answer(question_input, answer_text, expected_output)
+            
+            # Use domain from question or classify if not available
+            if domain is None:
+                from utils import classify_domain
+                domain = classify_domain(question_input)
+            
+            if is_correct:
+                category_stats[domain]["correct"] += 1
+            else:
+                category_stats[domain]["wrong"] += 1
+                category_stats[domain]["wrong_answers"].append({
+                    "index": idx,
+                    "domain": domain,
+                    "input": question_input,
+                    "expected": expected_output,
+                    "got": answer_text,
+                    "full_response": full_response
+                })
     
     return answers, dict(category_stats)
 
@@ -95,17 +123,14 @@ def validate_results(
             )
 
 def generate_answers():
-    """Generate answers for dev questions and save to output file."""
-    input_path = Path("cse476_final_project_dev_data.json")
+    """Generate answers for test questions and save to output file."""
+    # Use test data for final submission
+    input_path = Path("cse_476_final_project_test_data.json")
     output_path = Path("cse_476_final_project_answers.json")
     
     print("\n=== Generating Answers ===")
-    all_questions = load_questions(input_path)
-    print(f"Loaded {len(all_questions)} total questions from {input_path}")
-    
-    # Filter to only math questions
-    questions = [q for q in all_questions if q.get("domain") == "math"]
-    print(f"Filtered to {len(questions)} math questions")
+    questions = load_questions(input_path)
+    print(f"Loaded {len(questions)} questions from {input_path}")
     
     answers, category_stats = build_answers(questions)
     
